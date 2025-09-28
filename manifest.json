@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini Exporter - Response Copier Bulk - Page Scroller & Exporter",
+  "version": "1.5",
+  "description": "Scrolls Gemini page, extracts code blocks, and downloads them.",
+  "permissions": [
+    "scripting",
+    "activeTab",
+    "downloads",
+    "clipboardRead"
+  ],
+  "host_permissions": [
+    "*://gemini.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://gemini.google.com/*"],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

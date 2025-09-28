@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font-family: sans-serif; padding: 12px; width: 260px; }
+      h3 { margin-top: 0; }
+      label { font-size: 13px; display: block; margin-top: 6px; }
+      #progress { margin-top: 8px; font-size: 12px; color: #444; }
+      #downloads { margin-top: 6px; font-size: 12px; }
+      a { color: #006400; }
+    </style>
+  </head>
+  <body>
+    <h3>Gemini Exporter</h3>
+    <button id="exportBtn">Start Export</button>
+    <label>
+      <input type="checkbox" id="singleFile" />
+      Save all in single file
+    </label>
+    <div id="progress"></div>
+    <div id="downloads"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>
