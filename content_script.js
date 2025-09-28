@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const BLOCK_SELECTOR = "response-element > code-block pre, response-element > code-block code";
+  const BUTTON_SELECTOR = "response-element > code-block > div > div.code-block-decoration.header-formatted.gds-title-s.ng-star-inserted > div > button";
 
   const STEP_MS = 1000;
   const STABILITY_WAIT_MS = 1200;
@@ -13,7 +13,6 @@
   function getScrollHeight() { return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight); }
   function scrollToPos(pos) { window.scrollTo(0, pos); }
 
-  // Floating progress box with checkbox
   function createProgressBox(total) {
     let box = document.getElementById('gemini-export-progress-box');
     if (!box) {
@@ -66,7 +65,6 @@
   }
 
   async function ensureAllContentLoaded() {
-    console.log('[exporter] scroll to top');
     scrollToPos(0);
     await sleep(300);
 
@@ -102,57 +100,92 @@
       }
     }
     await sleep(300);
-    console.log('[exporter] final page height:', getScrollHeight());
+  }
+
+  async function readClipboardWithFallback(copyCapturedRef, timeout = 2500, interval = 200) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      if (copyCapturedRef.value && copyCapturedRef.value.trim()) return copyCapturedRef.value;
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const v = await navigator.clipboard.readText();
+          if (v && v.trim()) return v;
+        }
+      } catch {}
+      await sleep(interval);
+    }
+    return copyCapturedRef.value || '';
   }
 
   async function runExporter() {
     try {
       await ensureAllContentLoaded();
 
-      const blocks = Array.from(document.querySelectorAll(BLOCK_SELECTOR));
-      const total = blocks.length;
+      const buttons = Array.from(document.querySelectorAll(BUTTON_SELECTOR));
+      const total = buttons.length;
       chrome.runtime.sendMessage({ type: 'EXPORT_START', total });
-      console.log('[exporter] blocks found:', total);
+      console.log('[exporter] buttons found:', total);
 
       if (total === 0) {
-        alert('No exportable blocks found.');
+        alert('No exportable items found.');
         return;
       }
 
       createProgressBox(total);
-      const singleFileMode = document.getElementById('gemini-export-singlefile');
 
       let done = 0;
       let allContents = [];
 
-      for (let i = 0; i < blocks.length; i++) {
-        const block = blocks[i];
-        let text = (block.innerText || block.textContent || '').trim();
+      for (let i = 0; i < buttons.length; i++) {
+        const btn = buttons[i];
+
+        const copyCapturedRef = { value: '' };
+        function onCopy(e) {
+          try {
+            const d = e.clipboardData || window.clipboardData;
+            if (d) {
+              const captured = d.getData('text/plain') || d.getData('text') || '';
+              if (captured && captured.trim()) copyCapturedRef.value = captured;
+            }
+          } catch {}
+        }
+        document.addEventListener('copy', onCopy, { once: true });
+
+        btn.scrollIntoView({ block: 'center', behavior: 'auto' });
+        await sleep(150);
+        btn.click();
+
+        const text = await readClipboardWithFallback(copyCapturedRef, 2500, 200);
+        try { document.removeEventListener('copy', onCopy); } catch {}
+
         if (!text) continue;
 
         let out = text;
         try { out = JSON.stringify(JSON.parse(text), null, 2); } catch {}
 
-        const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-
-        if (singleFileMode && singleFileMode.checked) {
-          allContents.push(out);
-        } else {
-          const filename = `${today}_${i + 1}.json`;
-          chrome.runtime.sendMessage({ type: 'DOWNLOAD', filename, text: out, index: i + 1, total });
-        }
+        allContents.push(out); // collect all contents first
 
         done++;
         chrome.runtime.sendMessage({ type: 'EXPORT_PROGRESS', done, total });
         updateProgressBox(done, total);
-        await sleep(150);
+        await sleep(200);
       }
 
-      if (singleFileMode && singleFileMode.checked && allContents.length > 0) {
-        const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-        const filename = `${today}_all.json`;
-        const combined = allContents.join("\n\n---\n\n");
-        chrome.runtime.sendMessage({ type: 'DOWNLOAD', filename, text: combined, index: total, total });
+      // now handle download
+      const singleFileMode = document.getElementById('gemini-export-singlefile');
+      const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+
+      if (singleFileMode && singleFileMode.checked) {
+        if (allContents.length > 0) {
+          const combined = allContents.join("\n\n---\n\n");
+          const filename = `${today}_all.json`;
+          chrome.runtime.sendMessage({ type: 'DOWNLOAD', filename, text: combined, index: total, total });
+        }
+      } else {
+        allContents.forEach((out, idx) => {
+          const filename = `${today}_${idx + 1}.json`;
+          chrome.runtime.sendMessage({ type: 'DOWNLOAD', filename, text: out, index: idx + 1, total });
+        });
       }
 
       chrome.runtime.sendMessage({ type: 'EXPORT_FINISH', total });
@@ -170,9 +203,7 @@
     if (!msg || !msg.type) return;
     if (msg.type === 'START_EXPORT') runExporter();
     else if (msg.type === 'DOWNLOAD_FALLBACK') {
-      if (msg.filename && msg.dataUrl) {
-        addFallbackLinkToBox(msg.filename, msg.dataUrl);
-      }
+      if (msg.filename && msg.dataUrl) addFallbackLinkToBox(msg.filename, msg.dataUrl);
     }
   });
 
