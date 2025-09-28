@@ -1,8 +1,9 @@
+// popup.js
 (async function () {
   const exportBtn = document.getElementById('exportBtn');
   const progress = document.getElementById('progress');
   const downloadsDiv = document.getElementById('downloads');
-  const singleFileCheckbox = document.getElementById('singleFile');
+  const singleFileCheckbox = document.getElementById('singleFileCheckbox'); // id of popup checkbox
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || !msg.type) return;
@@ -21,10 +22,12 @@
       a.textContent = `Download ${msg.filename}`;
       a.style.display = 'block';
       downloadsDiv.appendChild(a);
-    } else if (msg.type === 'EXPORT_ERROR') {
-      progress.textContent = `Error: ${msg.message}`;
+      if (msg.index && msg.total) {
+        progress.textContent = `Downloaded ${msg.index} / ${msg.total} (some require manual click)`;
+      }
     }
   });
+
   exportBtn.addEventListener('click', async () => {
     progress.textContent = 'Starting export...';
     downloadsDiv.innerHTML = '';
@@ -35,17 +38,12 @@
       return;
     }
 
-    const singleFileCheckbox = document.getElementById('singleFileCheckbox');
-
-    // Send the singleFile value to content script
-    chrome.tabs.sendMessage(tab.id, {
-      type: 'START_EXPORT',
-      singleFile: singleFileCheckbox.checked
-    }, (resp) => {
+    // send singleFile flag to content script
+    const singleFile = singleFileCheckbox.checked;
+    chrome.tabs.sendMessage(tab.id, { type: 'START_EXPORT', singleFile }, (resp) => {
       if (chrome.runtime.lastError) {
         progress.textContent = 'Content script not available on this page.';
       }
     });
   });
-
 })();
