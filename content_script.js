@@ -32,16 +32,8 @@
       document.body.appendChild(box);
     }
 
-    box.innerHTML = `
-      <div id="gemini-export-status">0 / ${total} downloaded</div>
-      <div style="margin-top:8px;">
-        <label>
-          <input type="checkbox" id="gemini-export-singlefile" style="margin-right:5px;">
-          Save all in single file
-        </label>
-      </div>
-      <div id="gemini-export-links" style="margin-top:8px; max-height:160px; overflow:auto"></div>
-    `;
+    box.innerHTML = `<div id="gemini-export-status">0 / ${total} downloaded</div>
+                     <div id="gemini-export-links" style="margin-top:8px; max-height:160px; overflow:auto"></div>`;
     return box;
   }
 
@@ -117,7 +109,7 @@
     return copyCapturedRef.value || '';
   }
 
-  async function runExporter() {
+  async function runExporter(singleFileMode = false) {
     try {
       await ensureAllContentLoaded();
 
@@ -163,7 +155,13 @@
         let out = text;
         try { out = JSON.stringify(JSON.parse(text), null, 2); } catch {}
 
-        allContents.push(out); // collect all contents first
+        if (singleFileMode) {
+          allContents.push(out);
+        } else {
+          const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+          const filename = `${today}_${i + 1}.json`;
+          chrome.runtime.sendMessage({ type: 'DOWNLOAD', filename, text: out, index: i + 1, total });
+        }
 
         done++;
         chrome.runtime.sendMessage({ type: 'EXPORT_PROGRESS', done, total });
@@ -171,21 +169,11 @@
         await sleep(200);
       }
 
-      // now handle download
-      const singleFileMode = document.getElementById('gemini-export-singlefile');
-      const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-
-      if (singleFileMode && singleFileMode.checked) {
-        if (allContents.length > 0) {
-          const combined = allContents.join("\n\n---\n\n");
-          const filename = `${today}_all.json`;
-          chrome.runtime.sendMessage({ type: 'DOWNLOAD', filename, text: combined, index: total, total });
-        }
-      } else {
-        allContents.forEach((out, idx) => {
-          const filename = `${today}_${idx + 1}.json`;
-          chrome.runtime.sendMessage({ type: 'DOWNLOAD', filename, text: out, index: idx + 1, total });
-        });
+      if (singleFileMode && allContents.length > 0) {
+        const combined = allContents.join("\n\n---\n\n");
+        const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        const filename = `${today}_all.json`;
+        chrome.runtime.sendMessage({ type: 'DOWNLOAD', filename, text: combined, index: total, total });
       }
 
       chrome.runtime.sendMessage({ type: 'EXPORT_FINISH', total });
@@ -201,7 +189,7 @@
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || !msg.type) return;
-    if (msg.type === 'START_EXPORT') runExporter();
+    if (msg.type === 'START_EXPORT') runExporter(msg.singleFile);
     else if (msg.type === 'DOWNLOAD_FALLBACK') {
       if (msg.filename && msg.dataUrl) addFallbackLinkToBox(msg.filename, msg.dataUrl);
     }

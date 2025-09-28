@@ -25,7 +25,6 @@
       progress.textContent = `Error: ${msg.message}`;
     }
   });
-
   exportBtn.addEventListener('click', async () => {
     progress.textContent = 'Starting export...';
     downloadsDiv.innerHTML = '';
@@ -35,11 +34,18 @@
       progress.textContent = 'No active tab';
       return;
     }
-    const singleFile = singleFileCheckbox.checked;
-    chrome.tabs.sendMessage(tab.id, { type: 'START_EXPORT', singleFile }, () => {
+
+    const singleFileCheckbox = document.getElementById('singleFileCheckbox');
+
+    // Send the singleFile value to content script
+    chrome.tabs.sendMessage(tab.id, {
+      type: 'START_EXPORT',
+      singleFile: singleFileCheckbox.checked
+    }, (resp) => {
       if (chrome.runtime.lastError) {
         progress.textContent = 'Content script not available on this page.';
       }
     });
   });
+
 })();
