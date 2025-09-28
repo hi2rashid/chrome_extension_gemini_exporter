@@ -9,6 +9,12 @@
     "downloads",
     "clipboardRead"
   ],
+  "icons": {
+    "16": "extension_icon16.png",
+    "32": "extension_icon32.png",
+    "48": "extension_icon48.png",
+    "128": "extension_icon128.png"
+  },
   "host_permissions": [
     "*://gemini.google.com/*"
   ],
@@ -20,8 +26,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://gemini.google.com/*"],
-      "js": ["content_script.js"],
+      "matches": [
+        "*://gemini.google.com/*"
+      ],
+      "js": [
+        "content_script.js"
+      ],
       "run_at": "document_idle"
     }
   ]
